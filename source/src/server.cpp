@@ -5103,7 +5103,7 @@ void linequalitystats(int elapsed)
     }
 }
 
-SERVPARLIST(mandatory_auth, 0, 1, 0, endis, "sEnforce IDs for all clients even on unlisted server/LAN game");
+SERVPARLIST(mandatory_auth, 0, 0, 0, endis, "sEnforce IDs for all clients even on unlisted server/LAN game");
 
 void serverslice(uint timeout)   // main server update, called from cube main loop in sp, or dedicated server loop
 {
