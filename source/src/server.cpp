@@ -1450,8 +1450,9 @@ void flagaction(int flag, int action, int actor)
     {
         switch(action)
         {
+            case FA_PICKUP: // ktf continue: the flag can be lying on the ground
             case FA_STEAL:
-                if(deadactor || f.state != CTFF_INBASE || !flagdistance(f, actor)) { abort = 20; break; }
+                if(deadactor || f.state != (action == FA_STEAL ? CTFF_INBASE : CTFF_DROPPED) || !flagdistance(f, actor)) { abort = 20; break; }
                 f.state = CTFF_STOLEN;
                 f.actor_cn = actor;
                 f.stolentime = sg->gamemillis;
@@ -1475,6 +1476,12 @@ void flagaction(int flag, int action, int actor)
                 {
                     actor = f.actor_cn;
                     message = FM_LOST;
+                    if(m_ktfcontinue && action == FA_RESET && valid_client(actor))
+                    { // ktf continue: the flag stays where the carrier fell (and is reset by the drop timer)
+                        f.state = CTFF_DROPPED;
+                        loopi(3) f.pos[i] = clients[actor]->state.o[i];
+                        break;
+                    }
                 }
                 f.state = CTFF_IDLE;
                 of.state = CTFF_INBASE;
@@ -5152,7 +5159,7 @@ void serverslice(uint timeout)   // main server update, called from cube main lo
             {
                 flagaction(i, FA_SCORE, -1);
             }
-            if(f.state == CTFF_INBASE || f.state == CTFF_STOLEN) ktfflagingame = true;
+            if(f.state == CTFF_INBASE || f.state == CTFF_STOLEN || f.state == CTFF_DROPPED) ktfflagingame = true;
         }
         if(m_ktf && !ktfflagingame) flagaction(rnd(2), FA_RESET, -1); // ktf flag watchdog
         if(m_bomb) bomb_update();

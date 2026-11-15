@@ -299,6 +299,7 @@ void drawktfindicator(playerent *p)
         flaginfo &f = flaginfos[i];
         if(f.state == CTFF_INBASE) flagpos = f.pos;
         else if(f.state == CTFF_STOLEN && f.actor && f.actor != p) flagpos = f.actor->o;
+        else if(f.state == CTFF_DROPPED) flagpos = f.pos;
     }
     if(flagpos.x > 0 && flagpos.y > 0)
     {
