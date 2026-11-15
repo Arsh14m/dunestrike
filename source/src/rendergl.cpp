@@ -1020,6 +1020,58 @@ VARP(ignoreoverride_nostencilshadows, 0, 0, 1);
 
 int effective_stencilshadow = 0;
 
+// renderer-side brightness, used when the system gamma is unavailable or ignored (wayland/xwayland)
+extern int softgammalevel;
+
+static void drawsoftgamma()
+{
+    if(softgammalevel <= 0 || softgammalevel == 100) return;
+    float b = softgammalevel / 100.0f;
+    glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_FOG);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_ALPHA_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glDepthMask(GL_FALSE);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+    glEnable(GL_BLEND);
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    // brighten: out = dst*(1+k) by adding a copy of the framebuffer scaled by k (max 2x per pass)
+    while(b > 1.0f)
+    {
+        float step = b > 2.0f ? 2.0f : b;
+        glBlendFunc(GL_DST_COLOR, GL_ONE);
+        glColor4f(step - 1.0f, step - 1.0f, step - 1.0f, 0.0f);
+        glBegin(GL_QUADS);
+        glVertex2f(-1, -1); glVertex2f(1, -1); glVertex2f(1, 1); glVertex2f(-1, 1);
+        glEnd();
+        b /= step;
+    }
+    // darken: out = dst*b
+    if(b < 1.0f)
+    {
+        glBlendFunc(GL_DST_COLOR, GL_ZERO);
+        glColor4f(b, b, b, 1.0f);
+        glBegin(GL_QUADS);
+        glVertex2f(-1, -1); glVertex2f(1, -1); glVertex2f(1, 1); glVertex2f(-1, 1);
+        glEnd();
+    }
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glColor4f(1, 1, 1, 1);
+    glPopAttrib();
+}
+
 void gl_drawframe(int w, int h, float changelod, float curfps, int elapsed)
 {
     extern int mapoverride_nostencilshadows, mapoverride_nowaterreflect;
@@ -1192,6 +1244,8 @@ void gl_drawframe(int w, int h, float changelod, float curfps, int elapsed)
 
     extern vector<vertex> verts;
     gl_drawhud(w, h, int(curfps + 0.5f), nquads, verts.length(), underwater, elapsed);
+
+    drawsoftgamma();
 
     glEnable(GL_CULL_FACE);
     glEnable(GL_FOG);

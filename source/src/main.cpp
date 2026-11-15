@@ -523,19 +523,52 @@ void setresdata(char *s, enet_uint32 c)
 
 COMMANDF(screenres, "ii", (int *w, int *h) { screenres(*w, *h); });
 
-int setgamma(int newgamma) // replacement for SDL_SetGamma
-{
-    return screen ? SDL_SetWindowBrightness(screen, newgamma/100.0f) : -1;
-}
+int gammahwfailed = 0;      // the system refused to change the screen gamma
+int softgammalevel = 0;     // >0: renderer applies the brightness itself (gamma percent)
 
 static int curgamma = 100;
+
+extern int vsoftgamma;
+
+static bool softgammawanted()   // the hardware gamma is unavailable or has no effect
+{
+    if(vsoftgamma == 0) return false;
+    if(vsoftgamma == 1) return true;
+    if(gammahwfailed) return true;
+    const char *drv = SDL_GetCurrentVideoDriver();
+    if(drv && strstr(drv, "wayland")) return true;
+    if(drv && !strcmp(drv, "x11"))
+    {   // xwayland accepts gamma ramps but the compositor never applies them
+        const char *wl = getenv("WAYLAND_DISPLAY"), *st = getenv("XDG_SESSION_TYPE");
+        if((wl && wl[0]) || (st && !strcmp(st, "wayland"))) return true;
+    }
+    return false;
+}
+
+int setgamma(int newgamma) // replacement for SDL_SetGamma
+{
+    if(!screen) return -1;
+    int r = SDL_SetWindowBrightness(screen, softgammawanted() ? 1.0f : newgamma/100.0f);
+    if(r == -1) gammahwfailed = 1;
+    return r;
+}
+
+static void update_soft_gamma()
+{
+    if(screen && SDL_SetWindowBrightness(screen, softgammawanted() ? 1.0f : curgamma/100.0f) == -1)
+        gammahwfailed = 1;   // fall back to the renderer when the system refuses
+    softgammalevel = softgammawanted() ? curgamma : 0;
+}
+
+VARNFP(softgamma, vsoftgamma, -1, -1, 1, { update_soft_gamma(); });
 
 VARNFP(gamma, vgamma, 30, 100, 300,
 {
     if(vgamma != curgamma)
     {
-        if(setgamma(vgamma) == -1) conoutf("Could not set gamma: %s", SDL_GetError());
+        if(setgamma(vgamma) == -1) conoutf("Could not set gamma: %s (using renderer brightness)", SDL_GetError());
         curgamma = vgamma;
+        update_soft_gamma();
     }
 });
 
