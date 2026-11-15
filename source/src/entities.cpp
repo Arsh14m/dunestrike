@@ -456,7 +456,7 @@ void trypickupflag(int flag, playerent *d)
         }
         else if(m_ktf)
         {
-            if(f.state != CTFF_INBASE) return;
+            if(f.state != CTFF_INBASE && f.state != CTFF_DROPPED) return; // dropped: ktf continue
             flagpickup(flag);
         }
     }
